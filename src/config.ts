@@ -20,4 +20,4 @@ export const config = {
   }
 };
 
-console.log(`✅ Config Loaded. Wallet Public Key: ${config.payer.publicKey.toBase58()}`);
+console.log(`[Config] Loaded. Wallet: ${config.payer.publicKey.toBase58()}`);

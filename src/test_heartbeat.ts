@@ -4,7 +4,7 @@ import { config } from './config';
 
 async function testHeartbeat() {
   console.log("💓 Initiating Helius Heartbeat Check...");
-  console.log(`🔌 Endpoint: ${config.wssUrl}`);
+  console.log(`[WS] Endpoint:${config.wssUrl}`);
 
   const connection = new Connection(config.rpcUrl, {
     wsEndpoint: config.wssUrl,
