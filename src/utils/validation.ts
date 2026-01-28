@@ -5,6 +5,9 @@
 
 import { config } from '../config';
 import { Keypair } from '@solana/web3.js';
+import { createLogger } from './logger';
+
+const logger = createLogger('Validation');
 
 /**
  * 验证错误
@@ -115,7 +118,7 @@ export function validateTelegramConfig(botToken?: string, chatId?: string): void
     throw new ValidationError('TG_CHAT_ID', '必须是字符串');
   }
 
-  if (botToken && !botToken.match(/^\d+:[A-Za-z0-9_-+$/)) {
+  if (botToken && !botToken.match(/^\d+:[A-Za-z0-9_-]+$/)) {
     throw new ValidationError('TG_BOT_TOKEN', '格式无效');
   }
 }
@@ -135,29 +138,29 @@ export function validateJitoConfig(jitoConfig: any): void {
  * 完整配置验证
  */
 export function validateAllConfig(): void {
-  console.log('[Config] 开始验证配置...');
+  logger.info('[Config] 开始验证配置...');
 
   try {
     validateRpcConfig(config.rpcUrl);
-    console.log('[Config] RPC 配置有效');
+    logger.info('[Config] RPC 配置有效');
 
     // 注意：这里不验证私钥，因为可能从其他地方加载
     // validatePrivateKey(config.privateKey);
-    // console.log('[Config] 私钥有效');
+    // logger.info('[Config] 私钥有效');
 
     validateApiConfig(process.env.AI_API_KEY, process.env.AI_API_URL);
-    console.log('[Config] API 配置有效');
+    logger.info('[Config] API 配置有效');
 
     validateTelegramConfig(process.env.TG_BOT_TOKEN, process.env.TG_CHAT_ID);
-    console.log('[Config] Telegram 配置有效');
+    logger.info('[Config] Telegram 配置有效');
 
     validateJitoConfig(config.jito);
-    console.log('[Config] Jito 配置有效');
+    logger.info('[Config] Jito 配置有效');
 
-    console.log('[Config] 所有配置验证通过');
+    logger.info('[Config] 所有配置验证通过');
   } catch (error) {
     if (error instanceof ValidationError) {
-      console.error(`[Config] ${error.message}`);
+      logger.error(`[Config] ${error.message}`);
       throw error;
     }
     throw error;
@@ -189,7 +192,7 @@ export function migrateConfigIfNeeded(): void {
   // 这里可以处理旧版本配置的迁移
   // 例如：重命名字段、调整默认值等
 
-  console.log('[Config] 配置迁移检查完成');
+  logger.info('[Config] 配置迁移检查完成');
 }
 
 /**

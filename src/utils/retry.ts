@@ -3,6 +3,10 @@
  * 提供指数退避、熔断器等功能
  */
 
+import { createLogger } from './logger';
+
+const logger = createLogger('Retry');
+
 /**
  * 可重试的错误类型
  */
@@ -113,7 +117,7 @@ export async function retryAsync<T>(
         finalConfig.maxDelay
       );
 
-      console.log(`[Retry] 第 ${attempt + 1} 次尝试失败，${delay}ms 后重试:`, lastError.message);
+      logger.warn(`第 ${attempt + 1} 次尝试失败，${delay}ms 后重试:`, lastError.message);
 
       // 触发回调
       if (finalConfig.onRetry) {
@@ -257,7 +261,7 @@ export class CircuitBreaker {
   private setState(state: CircuitState) {
     const oldState = this.state;
     this.state = state;
-    console.log(`[CircuitBreaker] 状态变更: ${oldState} -> ${state}`);
+    logger.info(`状态变更: ${oldState} -> ${state}`);
   }
 
   /**
@@ -274,7 +278,7 @@ export class CircuitBreaker {
     this.state = CircuitState.CLOSED;
     this.failureCount = 0;
     this.successCount = 0;
-    console.log('[CircuitBreaker] 已重置');
+    logger.info('[CircuitBreaker] 已重置');
   }
 }
 

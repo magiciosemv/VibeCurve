@@ -1,6 +1,9 @@
 // src/listeners/scanner.ts
 import { Connection, PublicKey } from '@solana/web3.js';
 import { sendTgAlert } from '../utils/notifier';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('GlobalScanner');
 
 const PUMP_PROGRAM = new PublicKey("6EF8rrecthR5DkzonjNwu78hRvfCKubJ14M5uBEwF6P");
 
@@ -56,8 +59,8 @@ export class GlobalScanner {
     // 简单快速判断，不调用 getParsedTransaction 以节省 RPC 额度
     // 我们只通过 TG 发送一个通知，证明我们捕获到了
     // 在真实生产环境，这里需要解析交易内容
-    console.log(`🆕 NEW LAUNCH DETECTED! Sig: ${signature.slice(0,8)}...`);
-    
+    logger.info(`🆕 NEW LAUNCH DETECTED! Sig: ${signature.slice(0,8)}...`);
+
     // 只有当确定是 Create 指令时才发 TG (为了演示，这里简化为只要有新交易就视为活跃)
     // 真实环境需要 fetchTransaction 并检查 "Instruction: Create"
   }

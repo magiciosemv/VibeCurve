@@ -9,6 +9,9 @@ import {
   PublicKey,
   ParsedAccountData
 } from '@solana/web3.js';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('Parser');
 
 /**
  * 代币余额变化
@@ -146,11 +149,11 @@ export function parseTrade(
   // 逻辑验证
   const isBuy = targetTokenChange.isBuy;
   if (isBuy && totalSolOut < 0.001) {
-    console.warn(`[Parser] 买入信号验证失败: SOL 转出过小 (${totalSolOut})`);
+    logger.warn(`买入信号验证失败: SOL 转出过小 (${totalSolOut})`);
     return null;
   }
   if (!isBuy && totalSolIn < 0.001) {
-    console.warn(`[Parser] 卖出信号验证失败: SOL 转入过小 (${totalSolIn})`);
+    logger.warn(`卖出信号验证失败: SOL 转入过小 (${totalSolIn})`);
     return null;
   }
 
@@ -186,7 +189,7 @@ export async function parseBatchTrades(
       const trade = parseTrade(tx, targetMint);
       if (trade) trades.push(trade);
     } catch (error) {
-      console.error(`[Parser] Failed to parse ${sig}:`, error.message);
+      logger.error(`Failed to parse ${sig}:`, error as Error);
     }
   }
 

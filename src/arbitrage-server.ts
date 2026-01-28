@@ -10,6 +10,9 @@ import cors from 'cors';
 import { Connection } from '@solana/web3.js';
 import { config } from './config';
 import { ArbitrageSystem } from './core/arbitrageSystem';
+import { createLogger } from './utils/logger';
+
+const logger = createLogger('ArbitrageServer');
 
 const app = express();
 app.use(cors());
@@ -34,7 +37,7 @@ const MAX_CACHED_OPPORTUNITIES = 10;
 
 // WebSocket 连接处理
 io.on('connection', (socket) => {
-  console.log('[WebSocket] Client connected:', socket.id);
+  logger.info('WebSocket client connected', { socketId: socket.id });
 
   // 发送初始状态
   if (arbitrageSystem) {
@@ -50,12 +53,12 @@ io.on('connection', (socket) => {
     // 发送缓存的机会
     if (recentOpportunities.length > 0) {
       socket.emit('scan-result', recentOpportunities);
-      console.log(`[Cache] Sending ${recentOpportunities.length} cached opportunities to client`);
+      logger.info(`Sending ${recentOpportunities.length} cached opportunities to client`);
     }
   }
 
   socket.on('disconnect', () => {
-    console.log('[WebSocket] Client disconnected:', socket.id);
+    logger.info('WebSocket client disconnected', { socketId: socket.id });
   });
 
   // 客户端请求启动系统
@@ -164,6 +167,48 @@ app.get('/api/history', (req, res) => {
   res.json({ success: true, history });
 });
 
+// Get current prices endpoint
+app.get('/api/prices', async (req, res) => {
+  if (!arbitrageSystem) {
+    return res.json({ error: 'System not initialized' });
+  }
+
+  try {
+    const { DexAggregator } = await import('./core/coingeckoAggregator');
+    const connection = new Connection(config.rpcUrl);
+    const aggregator = new DexAggregator(connection);
+
+    const tokensToScan = [
+      { mint: 'So11111111111111111111111111111111111111112', symbol: 'SOL' },
+      { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK' },
+      { mint: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr', symbol: 'WIF' },
+      { mint: 'EKpQGSJtjMFqKZ9KQqMnxEJBkQpFGN6XTWqH5h1YuUuN', symbol: 'RAY' },
+    ];
+
+    const allPrices: any[] = [];
+
+    for (const token of tokensToScan) {
+      const prices = await aggregator.getAllPrices(token.mint, token.symbol);
+      prices.forEach(price => {
+        allPrices.push({
+          ...price,
+          tokenSymbol: token.symbol,
+          tokenMint: token.mint
+        });
+      });
+    }
+
+    res.json({
+      success: true,
+      prices: allPrices,
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    logger.error('Failed to fetch prices', error as Error);
+    res.json({ success: false, error: String(error) });
+  }
+});
+
 // AI Analysis endpoint
 app.post('/api/ai-analyze', async (req, res) => {
   try {
@@ -240,7 +285,7 @@ Provide:
                       'Consider execution with proper risk management.'
     });
   } catch (error) {
-    console.error('[AI] Analysis failed:', error);
+    logger.error('AI analysis failed', error as Error);
     const { opportunity } = req.body;
     res.json({
       success: true,
@@ -267,20 +312,17 @@ function generateLocalAnalysis(opportunity: any): string {
 
 // 启动服务器
 async function startServer() {
-  console.log('╔══════════════════════════════════════════════════════════════╗');
-  console.log('║         VibeCurve 套利系统 - Web Dashboard Server              ║');
-  console.log('╚══════════════════════════════════════════════════════════════╝');
-  console.log();
+  logger.info('╔══════════════════════════════════════════════════════════════╗');
+  logger.info('║         VibeCurve 套利系统 - Web Dashboard Server              ║');
+  logger.info('╚══════════════════════════════════════════════════════════════╝');
 
   const connection = new Connection(config.rpcUrl);
-  console.log('[System] RPC connection established');
-  console.log(`   钱包: ${config.payer.publicKey.toBase58()}`);
-  console.log();
+  logger.info('RPC connection established', { wallet: config.payer.publicKey.toBase58() });
 
   // 初始化套利系统
   arbitrageSystem = new ArbitrageSystem(connection, config.payer, {
-    scanInterval: 120000,       // 120 秒扫描一次（适配 CoinGecko API 限制）
-    minProfitPercent: 0.3,      // 0.3% 最小利润
+    scanInterval: 120000,       // 120 秒扫描一次（适配 API 限制）
+    minProfitPercent: 0.05,     // 0.05% 最小利润（降低以发现微小价差）
     minLiquidity: 10,           // 10 SOL 最小流动性
     tradeAmount: 0.05,          // 0.05 SOL 交易金额
     maxSlippage: 0.01,          // 1% 滑点
@@ -291,9 +333,10 @@ async function startServer() {
 
   // 监听套利机会事件
   arbitrageSystem.on('opportunity', (opportunity) => {
-    console.log(`[Arbitrage] Opportunity detected: ${opportunity.tokenSymbol}`);
-    console.log(`[Arbitrage]   Route: ${opportunity.buyDex} -> ${opportunity.sellDex}`);
-    console.log(`[Arbitrage]   Profit: ${opportunity.priceDiff.toFixed(3)}% (${opportunity.estimatedProfit.toFixed(4)} SOL)`);
+    logger.info(`Opportunity detected: ${opportunity.tokenSymbol}`, {
+      route: `${opportunity.buyDex} -> ${opportunity.sellDex}`,
+      profit: `${opportunity.priceDiff.toFixed(3)}% (${opportunity.estimatedProfit.toFixed(4)} SOL)`
+    });
 
     // 添加到缓存
     recentOpportunities.unshift(opportunity);
@@ -307,11 +350,10 @@ async function startServer() {
 
   // 监听套利执行事件
   arbitrageSystem.on('executed', (result) => {
-    console.log(`[Execution] Arbitrage ${result.success ? 'SUCCESS' : 'FAILED'}`);
     if (result.success) {
-      console.log(`   净利润: ${result.netProfit.toFixed(6)} SOL`);
+      logger.info('Arbitrage execution SUCCESS', { netProfit: `${result.netProfit.toFixed(6)} SOL` });
     } else {
-      console.log(`   错误: ${result.error}`);
+      logger.error('Arbitrage execution FAILED', undefined, { error: result.error });
     }
 
     // 广播到所有 WebSocket 客户端
@@ -326,47 +368,42 @@ async function startServer() {
 
   // 启动 HTTP 服务器
   httpServer.listen(PORT, () => {
-    console.log();
-    console.log('🌐 Web Dashboard Server 已启动！');
-    console.log();
-    console.log(`   HTTP API:  http://localhost:${PORT}`);
-    console.log(`   WebSocket: ws://localhost:${PORT}`);
-    console.log();
-    console.log('💡 前端可以通过以下方式连接:');
-    console.log(`   - Socket.io: http://localhost:${PORT}`);
-    console.log(`   - HTTP API: http://localhost:${PORT}/api/*`);
-    console.log();
-    console.log('📊 可用的 API 端点:');
-    console.log(`   GET  /api/status      - 获取系统状态`);
-    console.log(`   GET  /api/config      - 获取配置`);
-    console.log(`   POST /api/config      - 更新配置`);
-    console.log(`   POST /api/start       - 启动系统`);
-    console.log(`   POST /api/stop        - 停止系统`);
-    console.log(`   POST /api/scan        - 手动扫描`);
-    console.log(`   GET  /api/history     - 获取历史记录`);
-    console.log();
-    console.log('🔗 WebSocket 事件:');
-    console.log(`   - opportunity: 套利机会`);
-    console.log(`   - executed: 执行结果`);
-    console.log(`   - stats-updated: 统计更新`);
-    console.log(`   - config-updated: 配置更新`);
-    console.log();
-    console.log('⌨️  按 Ctrl+C 停止服务器');
-    console.log('═══════════════════════════════════════════════════════════════');
+    logger.info('Web Dashboard Server 已启动！');
+    logger.info(`HTTP API:  http://localhost:${PORT}`);
+    logger.info(`WebSocket: ws://localhost:${PORT}`);
+    logger.info('前端可以通过以下方式连接:');
+    logger.info(`- Socket.io: http://localhost:${PORT}`);
+    logger.info(`- HTTP API: http://localhost:${PORT}/api/*`);
+    logger.info('可用的 API 端点:');
+    logger.info(`GET  /api/status      - 获取系统状态`);
+    logger.info(`GET  /api/config      - 获取配置`);
+    logger.info(`POST /api/config      - 更新配置`);
+    logger.info(`POST /api/start       - 启动系统`);
+    logger.info(`POST /api/stop        - 停止系统`);
+    logger.info(`POST /api/scan        - 手动扫描`);
+    logger.info(`GET  /api/history     - 获取历史记录`);
+    logger.info('WebSocket 事件:');
+    logger.info(`- opportunity: 套利机会`);
+    logger.info(`- executed: 执行结果`);
+    logger.info(`- stats-updated: 统计更新`);
+    logger.info(`- config-updated: 配置更新`);
+    logger.info('按 Ctrl+C 停止服务器');
   });
 
   // 优雅关闭
   process.on('SIGINT', () => {
-    console.log('\n⏹️  正在关闭服务器...');
+    logger.info('正在关闭服务器...');
     if (arbitrageSystem) {
       arbitrageSystem.stop();
     }
     httpServer.close(() => {
-      console.log('[System] Server shutdown complete');
+      logger.info('Server shutdown complete');
       process.exit(0);
     });
   });
 }
 
 // 启动
-startServer().catch(console.error);
+startServer().catch((error) => {
+  logger.error('Failed to start server', error);
+});

@@ -1,15 +1,81 @@
 # --- 依赖库 (体积巨大，不需要上传) ---
 node_modules/
+client/node_modules/
 venv/
 
 # --- 安全隐私 (绝对不能上传！) ---
 .env
+.env.local
+.env.*.local
+*.key
+wallet.json
 
 # --- 系统生成的垃圾文件 ---
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# --- 编译输出 (如果有) ---
+# --- 编译输出 ---
 dist/
 build/
+*.tsbuildinfo
+
+# --- 日志文件 ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# --- 编辑器和IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# --- 测试覆盖率 ---
+coverage/
+.nyc_output/
+*.lcov
+
+# --- 临时文件 ---
+tmp/
+temp/
+*.tmp
+.cache/
+.parcel-cache/
+
+# --- 操作系统 ---
+.AppleDouble
+.LSOverride
+
+# --- 部署相关 ---
+.vercel/
+.netlify/
+
+# --- Docker (可选，如果不想上传 docker 相关文件) ---
+# Dockerfile
+# docker-compose.yml
+# .dockerignore
+
+# --- 其他 ---
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+s3tmp_*/

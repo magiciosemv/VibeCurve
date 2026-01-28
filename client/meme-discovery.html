@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeCurve - AI-Powered Meme Token Discovery Engine</title>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            color: #e0e6ed;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(15, 12, 41, 0.8);
+            backdrop-filter: blur(20px);
+            padding: 20px 40px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-content {
+            max-width: 1800px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo h1 {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo .badge {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 25px;
+            align-items: center;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.active {
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
+
+        .main-content {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 30px 40px;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 60px 20px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 20px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .hero h2 {
+            font-size: 42px;
+            font-weight: 800;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 18px;
+            color: #cbd5e1;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
+            border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tokens-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .token-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .token-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transform: scaleX(0);
+            transition: transform 0.3s;
+        }
+
+        .token-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .token-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
+        }
+
+        .token-card.sniper {
+            border-color: rgba(16, 185, 129, 0.5);
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.2);
+        }
+
+        .token-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .token-symbol {
+            font-size: 24px;
+            font-weight: 800;
+            color: #f8fafc;
+        }
+
+        .token-score {
+            font-size: 28px;
+            font-weight: 900;
+            padding: 8px 16px;
+            border-radius: 12px;
+        }
+
+        .token-score.high {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .token-score.medium {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        .token-score.low {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .token-recommendation {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .rec-sniper {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid #10b981;
+        }
+
+        .rec-buy {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            border: 1px solid #667eea;
+        }
+
+        .rec-watch {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+            border: 1px solid #f59e0b;
+        }
+
+        .rec-avoid {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid #ef4444;
+        }
+
+        .token-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .metric {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #e0e6ed;
+        }
+
+        .token-factors {
+            margin-top: 15px;
+            font-size: 12px;
+        }
+
+        .factor {
+            padding: 6px 10px;
+            margin: 4px 0;
+            border-radius: 6px;
+            border-left: 3px solid;
+        }
+
+        .factor.positive {
+            background: rgba(16, 185, 129, 0.1);
+            border-left-color: #10b981;
+            color: #10b981;
+        }
+
+        .factor.negative {
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #94a3b8;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 40px;
+            color: #64748b;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #64748b;
+            font-size: 13px;
+            border-top: 1px solid rgba(148, 163, 184, 0.1);
+            margin-top: 60px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="logo">
+                <h1>🚀 VibeCurve</h1>
+                <span class="badge">Meme Token Discovery Engine</span>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <span id="statusText">Connecting...</span>
+                </div>
+                <div class="status-item">
+                    <span>🔴 Live</span>
+                </div>
+                <div class="status-item">
+                    <span id="tokenCount">0 tokens analyzed</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h2>🎯 Discover the Next 100x Meme Token</h2>
+            <p>
+                AI-powered analysis of Bonding Curve progress, transaction velocity, holder distribution, and Rug Pull risk.
+                <br>
+                <strong>Real-time scoring system</strong> helps you identify opportunities before they explode.
+            </p>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Opportunities Found</div>
+                    <div class="stat-value" id="totalOpportunities">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">High Confidence</div>
+                    <div class="stat-value" id="highConfCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Score</div>
+                    <div class="stat-value" id="avgScore">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Scanners</div>
+                    <div class="stat-value" id="activeScanners">5</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tokens Grid -->
+        <div id="tokensContainer" class="tokens-grid">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <div>Initializing AI Discovery Engine...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>⚠️ This is a research tool. Always do your own research before investing.</p>
+        <p>Powered by VibeCurve | Solana DeFi Intelligence Platform</p>
+    </div>
+
+    <script>
+        // Configuration
+        const SERVER_URL = 'http://172.22.45.122:3002';
+
+        // Socket connection
+        const socket = io(SERVER_URL);
+
+        // Data storage
+        let analyzedTokens = new Map();
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Simulate some initial data for demo
+            setTimeout(() => {
+                loadDemoData();
+            }, 2000);
+        });
+
+        // Socket events
+        socket.on('connect', () => {
+            document.getElementById('statusIndicator').classList.add('active');
+            document.getElementById('statusText').textContent = 'Connected';
+        });
+
+        socket.on('opportunity', (data) => {
+            addOrUpdateToken(data);
+        });
+
+        // Load demo data
+        function loadDemoData() {
+            const demoTokens = [
+                {
+                    tokenSymbol: 'BONK',
+                    tokenMint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
+                    overallScore: 78,
+                    recommendation: 'BUY',
+                    confidence: 'HIGH',
+                    priceDiff: 2.3,
+                    liquidity: 2500,
+                    estimatedProfit: 0.08,
+                    volume24h: 500000,
+                    bondingCurveProgress: 0.85,
+                    txVelocity: {
+                        momentum: 'STRONG',
+                        acceleration: 1.8
+                    },
+                    holderAnalysis: {
+                        totalHolders: 850,
+                        top10HoldersPercentage: 35,
+                        riskLevel: 'LOW'
+                    },
+                    positiveFactors: [
+                        '✅ 交易激增：最近1小时 245 笔交易',
+                        '✅ 持仓分布健康：850 个地址',
+                        '✅ 接近迁移点，最佳入场时机'
+                    ],
+                    riskFactors: [
+                        '⚠️ 注意市场波动风险'
+                    ]
+                },
+                {
+                    tokenSymbol: 'WIF',
+                    tokenMint: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
+                    overallScore: 82,
+                    recommendation: 'SNIPER',
+                    confidence: 'HIGH',
+                    priceDiff: 3.1,
+                    liquidity: 3200,
+                    estimatedProfit: 0.12,
+                    volume24h: 750000,
+                    bondingCurveProgress: 0.92,
+                    txVelocity: {
+                        momentum: 'SURGING',
+                        acceleration: 2.9
+                    },
+                    holderAnalysis: {
+                        totalHolders: 1200,
+                        top10HoldersPercentage: 28,
+                        riskLevel: 'LOW'
+                    },
+                    positiveFactors: [
+                        '🚀 交易激增：最近1小时 389 笔交易',
+                        '🚀 加速度 290%',
+                        '✅ 接近迁移点，最佳入场时机'
+                    ],
+                    riskFactors: []
+                },
+                {
+                    tokenSymbol: 'MOON',
+                    tokenMint: 'MoonTokenExample123456789',
+                    overallScore: 45,
+                    recommendation: 'WATCH',
+                    confidence: 'MEDIUM',
+                    priceDiff: 0.8,
+                    liquidity: 180,
+                    estimatedProfit: 0.008,
+                    volume24h: 50000,
+                    bondingCurveProgress: 0.45,
+                    txVelocity: {
+                        momentum: 'STABLE',
+                        acceleration: 0.9
+                    },
+                    holderAnalysis: {
+                        totalHolders: 120,
+                        top10HoldersPercentage: 55,
+                        riskLevel: 'MEDIUM'
+                    },
+                    positiveFactors: [
+                        '✓ 中期阶段，需要观察'
+                    ],
+                    riskFactors: [
+                        '⚠️ 前10名持仓 55.0%',
+                        '⚠️ 交易速度一般'
+                    ]
+                }
+            ];
+
+            demoTokens.forEach(token => {
+                analyzedTokens.set(token.tokenSymbol, token);
+            });
+
+            renderTokens();
+            updateStats();
+        }
+
+        // Add or update token
+        function addOrUpdateToken(tokenData) {
+            analyzedTokens.set(tokenData.tokenSymbol, tokenData);
+            renderTokens();
+            updateStats();
+        }
+
+        // Render all tokens
+        function renderTokens() {
+            const container = document.getElementById('tokensContainer');
+
+            if (analyzedTokens.size === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1 / -1;">
+                        <div class="empty-state-icon">🔍</div>
+                        <div style="font-size: 20px; margin-bottom: 10px;">No tokens analyzed yet</div>
+                        <div>The AI engine is scanning for opportunities...</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort by score
+            const sortedTokens = Array.from(analyzedTokens.values()).sort((a, b) => b.overallScore - a.overallScore);
+
+            let html = '';
+            sortedTokens.forEach(token => {
+                const scoreClass = token.overallScore >= 70 ? 'high' : token.overallScore >= 50 ? 'medium' : 'low';
+                const recClass = token.recommendation.toLowerCase();
+                const isSniper = token.recommendation === 'SNIPER';
+
+                html += `
+                    <div class="token-card ${isSniper ? 'sniper' : ''}">
+                        <div class="token-header">
+                            <div>
+                                <span class="token-recommendation rec-${recClass}">${token.recommendation}</span>
+                                <div class="token-symbol">${token.tokenSymbol}</div>
+                            </div>
+                            <div class="token-score ${scoreClass}">${token.overallScore}</div>
+                        </div>
+
+                        <div class="token-metrics">
+                            <div class="metric">
+                                <div class="metric-label">Price Diff</div>
+                                <div class="metric-value">${token.priceDiff.toFixed(2)}%</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Liquidity</div>
+                                <div class="metric-value">${token.liquidity.toFixed(0)} SOL</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Est. Profit</div>
+                                <div class="metric-value">${token.estimatedProfit.toFixed(4)} SOL</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Confidence</div>
+                                <div class="metric-value">${token.confidence}</div>
+                            </div>
+                        </div>
+
+                        <div class="token-factors">
+                            ${token.positiveFactors.slice(0, 2).map(f => `<div class="factor positive">${f}</div>`).join('')}
+                            ${token.riskFactors.slice(0, 1).map(f => `<div class="factor negative">${f}</div>`).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Update statistics
+        function updateStats() {
+            const tokens = Array.from(analyzedTokens.values());
+
+            document.getElementById('tokenCount').textContent = `${tokens.length} tokens analyzed`;
+            document.getElementById('totalOpportunities').textContent = tokens.filter(t => t.overallScore >= 70).length;
+            document.getElementById('highConfCount').textContent = tokens.filter(t => t.confidence === 'HIGH').length;
+
+            if (tokens.length > 0) {
+                const avgScore = tokens.reduce((sum, t) => sum + t.overallScore, 0) / tokens.length;
+                document.getElementById('avgScore').textContent = avgScore.toFixed(0);
+            }
+        }
+    </script>
+</body>
+</html>

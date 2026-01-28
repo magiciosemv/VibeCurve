@@ -7,6 +7,10 @@ import { config } from './config';
 import { simulator } from './core/simulator';
 import { getAiComment } from './core/ai';
 import { GlobalScanner } from './listeners/scanner';
+import { createLogger } from './utils/logger';
+import { HealthCheckManager } from './utils/health';
+
+const logger = createLogger('Server');
 
 const app = express();
 app.use(cors());
@@ -27,7 +31,7 @@ const priceHistory: { time: string, price: number }[] = [];
 
 // === WebSocket 连接处理 ===
 io.on('connection', (socket) => {
-  console.log('[WS] Frontend Connected:', socket.id);
+  logger.info('Frontend connected', { socketId: socket.id });
   
   // 客户端一连上来，先发给它历史数据和当前状态
   socket.emit('init-data', {
@@ -41,7 +45,72 @@ io.on('connection', (socket) => {
 // === 核心逻辑 (复用之前的逻辑) ===
 async function startServer() {
   const connection = new Connection(config.rpcUrl, 'confirmed');
-  console.log("🚀 Backend Server Started on Port", PORT);
+  const healthCheck = new HealthCheckManager(connection);
+
+  // 添加健康检查端点
+  app.get('/health', async (req, res) => {
+    try {
+      const status = await healthCheck.getHealthStatus();
+      const statusCode = status.status === 'healthy' ? 200 :
+                        status.status === 'degraded' ? 200 : 503;
+      res.status(statusCode).json(status);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Health check failed', err);
+      res.status(500).json({
+        status: 'unhealthy',
+        error: err.message
+      });
+    }
+  });
+
+  app.get('/health/ready', async (req, res) => {
+    try {
+      const readiness = await healthCheck.getReadiness();
+      const statusCode = readiness.ready ? 200 : 503;
+      res.status(statusCode).json(readiness);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      res.status(503).json({
+        ready: false,
+        error: err.message
+      });
+    }
+  });
+
+  app.get('/health/live', async (req, res) => {
+    try {
+      const check = await healthCheck.quickCheck();
+      const statusCode = check.healthy ? 200 : 503;
+      res.status(statusCode).json(check);
+    } catch (error) {
+      res.status(503).json({
+        healthy: false,
+        timestamp: Date.now()
+      });
+    }
+  });
+
+  app.get('/metrics', async (req, res) => {
+    try {
+      const status = await healthCheck.getHealthStatus();
+      res.json({
+        timestamp: status.timestamp,
+        uptime: status.uptime,
+        memory: status.metrics.memoryUsage,
+        cpu: status.metrics.cpuUsage,
+        services: status.services
+      });
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Metrics collection failed', err);
+      res.status(500).json({
+        error: err.message
+      });
+    }
+  });
+
+  logger.info(`Backend server started on port ${PORT}`);
 
   // 1. 启动全网扫描 (并广播)
   // 我们稍微魔改一下 console.log 来捕获 Scanner 的输出
@@ -126,11 +195,13 @@ async function startServer() {
             status: simulator.getStatus(mockPrice)
         });
 
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      logger.error('Error in main loop', e as Error);
+    }
   }, 2000);
 
   httpServer.listen(PORT, () => {
-    console.log(`📡 WebSocket Server ready at http://localhost:${PORT}`);
+    logger.info(`WebSocket server ready at http://localhost:${PORT}`);
   });
 }
 

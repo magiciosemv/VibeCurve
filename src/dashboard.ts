@@ -6,6 +6,9 @@ import { simulator } from './core/simulator';
 import { sendTgAlert } from './utils/notifier';
 import { getAiComment } from './core/ai';
 import { GlobalScanner } from './listeners/scanner'; // <--- 引入扫描器
+import { createLogger } from './utils/logger';
+
+const logger = createLogger('Dashboard');
 
 const TARGET_MINT = new PublicKey('GKjAe1bQXXLoEitJYSuyw6qt97tTVoKkGEgWPEo6pump'); 
 const TARGET_NAME = "Chill Guy (Demo)"; 
@@ -168,4 +171,6 @@ async function startDashboard() {
   screen.key(['escape', 'q', 'C-c'], () => process.exit(0));
 }
 
-startDashboard();
+startDashboard().catch((error) => {
+  logger.error('Failed to start dashboard', error);
+});

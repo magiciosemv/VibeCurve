@@ -1,9 +1,12 @@
 import { Connection, PublicKey } from '@solana/web3.js';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('Pump');
 
 const PUMP_PROGRAM_ID = new PublicKey('6EF8rrecthR5DkzonjNwu78hRvfCKubJ14M5uBEwF6P');
 
 export async function startPumpListener(connection: Connection) {
-  console.log("🎧 Mode: Aggressive Polling (Force Processed)...");
+  logger.info("🎧 Mode: Aggressive Polling (Force Processed)...");
   
   let lastSignature: string | null = null;
   let isProcessing = false;
@@ -30,7 +33,7 @@ export async function startPumpListener(connection: Connection) {
 
       if (!lastSignature) {
         lastSignature = newestTx.signature;
-        console.log(`✅ Initialized. Locked on: ${lastSignature.slice(0, 10)}...`);
+        logger.info(`✅ Initialized. Locked on: ${lastSignature.slice(0, 10)}...`);
         isProcessing = false;
         return;
       }
@@ -39,7 +42,7 @@ export async function startPumpListener(connection: Connection) {
         staleCounter++;
         if (staleCounter % 10 === 0) {
             // 每20秒抱怨一次
-            console.log(`\n💤 RPC Stale x${staleCounter}. No new data...`);
+            logger.info(`\n💤 RPC Stale x${staleCounter}. No new data...`);
         } else {
             process.stdout.write('.');
         }
@@ -57,9 +60,9 @@ export async function startPumpListener(connection: Connection) {
       lastSignature = newestTx.signature;
       staleCounter = 0;
 
-      console.log(`\n🚀 [NEW] Found ${newTxs.length} txs!`);
+      logger.info(`\n🚀 [NEW] Found ${newTxs.length} txs!`);
       // 打印最新一笔
-      console.log(`   👉 https://solscan.io/tx/${newTxs[0].signature}`);
+      logger.info(`   👉 https://solscan.io/tx/${newTxs[0].signature}`);
 
     } catch (err) {
       // 忽略网络抖动错误

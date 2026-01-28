@@ -487,6 +487,25 @@
             </div>
         </div>
 
+        <!-- Live Prices Panel -->
+        <div style="margin-bottom: 30px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div class="chart-title" style="font-size: 20px;">💰 Live Prices</div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <span id="priceStatus" style="font-size: 12px; color: #94a3b8;">Loading...</span>
+                    <button class="btn-secondary" onclick="fetchPrices()" style="padding: 8px 16px; font-size: 11px;">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+            <div id="pricesContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                <div style="grid-column: 1 / -1; padding: 40px; text-align: center; background: rgba(30, 41, 59, 0.5); border-radius: 12px; color: #94a3b8;">
+                    <div style="font-size: 40px; margin-bottom: 10px;">📊</div>
+                    <div>正在加载价格数据...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Charts -->
         <div class="chart-grid">
             <div class="chart-card">
@@ -553,8 +572,11 @@
     </div>
 
     <script>
+        // Configuration for WSL environment
+        const SERVER_URL = 'http://172.22.45.122:3002';
+
         // Socket connection
-        const socket = io('http://localhost:3002');
+        const socket = io(SERVER_URL);
 
         // Data storage
         let opportunities = [];
@@ -573,7 +595,134 @@
         document.addEventListener('DOMContentLoaded', () => {
             initCharts();
             document.getElementById('initTimestamp').textContent = formatTime(new Date());
+            // Fetch prices immediately on load
+            fetchPrices();
+            // Auto-refresh prices every 30 seconds
+            setInterval(fetchPrices, 30000);
         });
+
+        // Fetch prices function
+        async function fetchPrices() {
+            const statusEl = document.getElementById('priceStatus');
+            const container = document.getElementById('pricesContainer');
+
+            try {
+                statusEl.textContent = 'Updating...';
+
+                const response = await fetch(`${SERVER_URL}/api/prices`);
+                const data = await response.json();
+
+                if (data.success && data.prices) {
+                    displayPrices(data.prices);
+                    statusEl.textContent = `Updated: ${formatTime(new Date())}`;
+
+                    // Emit price update via WebSocket
+                    if (socket.connected) {
+                        socket.emit('get-prices');
+                    }
+                } else {
+                    container.innerHTML = `
+                        <div style="grid-column: 1 / -1; padding: 40px; text-align: center; background: rgba(30, 41, 59, 0.5); border-radius: 12px; color: #ef4444;">
+                            <div style="font-size: 40px; margin-bottom: 10px;">⚠️</div>
+                            <div>Failed to load prices</div>
+                        </div>
+                    `;
+                    statusEl.textContent = 'Error loading prices';
+                }
+            } catch (error) {
+                console.error('Failed to fetch prices:', error);
+                container.innerHTML = `
+                    <div style="grid-column: 1 / -1; padding: 40px; text-align: center; background: rgba(30, 41, 59, 0.5); border-radius: 12px; color: #ef4444;">
+                        <div style="font-size: 40px; margin-bottom: 10px;">❌</div>
+                        <div>Connection error</div>
+                    </div>
+                `;
+                statusEl.textContent = 'Connection error';
+            }
+        }
+
+        // Display prices function
+        function displayPrices(prices) {
+            const container = document.getElementById('pricesContainer');
+
+            if (!prices || prices.length === 0) {
+                container.innerHTML = `
+                    <div style="grid-column: 1 / -1; padding: 40px; text-align: center; background: rgba(30, 41, 59, 0.5); border-radius: 12px; color: #94a3b8;">
+                        <div style="font-size: 40px; margin-bottom: 10px;">📊</div>
+                        <div>No price data available</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group prices by token
+            const tokenPrices = {};
+            prices.forEach(price => {
+                if (!tokenPrices[price.tokenSymbol]) {
+                    tokenPrices[price.tokenSymbol] = [];
+                }
+                tokenPrices[price.tokenSymbol].push(price);
+            });
+
+            // Generate HTML
+            let html = '';
+            for (const [symbol, tokenPricesList] of Object.entries(tokenPrices)) {
+                // Calculate spread if we have multiple prices
+                let spreadInfo = '';
+                if (tokenPricesList.length > 1) {
+                    const minPrice = Math.min(...tokenPricesList.map(p => p.price));
+                    const maxPrice = Math.max(...tokenPricesList.map(p => p.price));
+                    const spread = ((maxPrice - minPrice) / minPrice * 100).toFixed(3);
+                    spreadInfo = `
+                        <div style="font-size: 11px; color: #64748b; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(148, 163, 184, 0.1);">
+                            Spread: ${spread}% | Min: $${minPrice.toFixed(4)} | Max: $${maxPrice.toFixed(4)}
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.1); border-radius: 12px; padding: 20px; backdrop-filter: blur(10px);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div>
+                                <div style="font-size: 24px; font-weight: 700; color: #e0e6ed;">${symbol}</div>
+                                <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Real-time Market Prices</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                `;
+
+                tokenPricesList.forEach(price => {
+                    const sourceClass = `source-${price.dataSource.toLowerCase()}`;
+                    const sourceColor = {
+                        'binance': '#fbbf24',
+                        'kucoin': '#10b981',
+                        'jupiter': '#8b5cf6',
+                        'coingecko': '#f97316',
+                        'onchain': '#06b6d4'
+                    }[price.dataSource.toLowerCase()] || '#94a3b8';
+
+                    html += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.05);">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 13px; font-weight: 600; color: #94a3b8;">${price.dex}</span>
+                                <span style="font-size: 10px; padding: 3px 8px; border-radius: 4px; background: ${sourceColor}20; color: ${sourceColor};">${price.dataSource}</span>
+                            </div>
+                            <div style="font-size: 16px; font-weight: 700; color: #667eea;">$${price.price < 0.001 ? price.price.toExponential(2) : price.price.toFixed(4)}</div>
+                        </div>
+                    `;
+                });
+
+                html += spreadInfo + `
+                        </div>
+                        <div style="font-size: 10px; color: #64748b; margin-top: 10px; text-align: right;">
+                            ${new Date(tokenPricesList[0].timestamp).toLocaleTimeString()}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
 
         // Socket events
         socket.on('connect', () => {
@@ -746,7 +895,7 @@
             loading.style.display = 'inline-block';
 
             // Call AI analysis endpoint
-            fetch('/api/ai-analyze', {
+            fetch(`${SERVER_URL}/api/ai-analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -837,7 +986,7 @@
 
         function updateLatency() {
             const start = Date.now();
-            fetch('http://localhost:3002/api/status', { cache: 'no-cache' })
+            fetch(`${SERVER_URL}/api/status`, { cache: 'no-cache' })
                 .then(() => {
                     const latency = Date.now() - start;
                     document.getElementById('latencyValue').textContent = latency + ' ms';

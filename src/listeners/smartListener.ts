@@ -7,6 +7,9 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { config } from '../config';
 import { parseTrade } from '../core/parser';
 import { getTokenPrice, getPriceTrend } from '../core/price';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('SmartListener');
 
 /**
  * 交易事件回调
@@ -54,7 +57,7 @@ export class SmartListener {
   private onPriceUpdate?: PriceUpdateCallback;
 
   constructor(config: SmartListenerConfig) {
-    this.connection = new Connection(config.rpcUrl || config.rpcUrl, 'confirmed');
+    this.connection = new Connection(config.rpcUrl, 'confirmed');
     this.targetMint = config.targetMint;
     this.pollInterval = config.pollInterval || 3000;
     this.onTrade = config.onTrade;
@@ -66,12 +69,12 @@ export class SmartListener {
    */
   async start() {
     if (this.isRunning) {
-      console.warn('[SmartListener] 已经在运行中');
+      logger.warn('[SmartListener] 已经在运行中');
       return;
     }
 
     this.isRunning = true;
-    console.log(`[SmartListener] 启动监听: ${this.targetMint.toBase58()}`);
+    logger.info(`[SmartListener] 启动监听: ${this.targetMint.toBase58()}`);
 
     // 获取初始价格
     await this.updatePrice();
@@ -85,7 +88,7 @@ export class SmartListener {
    */
   stop() {
     this.isRunning = false;
-    console.log('[SmartListener] 已停止');
+    logger.info('[SmartListener] 已停止');
   }
 
   /**
@@ -121,7 +124,7 @@ export class SmartListener {
           // 解析交易
           const trade = parseTrade(tx, this.targetMint);
           if (trade) {
-            console.log(`[SmartListener] ${trade.type.toUpperCase()}: ${trade.amount} tokens @ ${trade.price?.toFixed(8)} SOL`);
+            logger.info(`${trade.type.toUpperCase()}: ${trade.amount} tokens @ ${trade.price?.toFixed(8)} SOL`);
 
             // 触发回调
             if (this.onTrade) {
@@ -135,7 +138,8 @@ export class SmartListener {
             }
           }
         } catch (error) {
-          console.error(`[SmartListener] 解析交易失败:`, error.message);
+          const err = error instanceof Error ? error : new Error(String(error));
+          logger.error('解析交易失败:', err);
         }
       }
 
@@ -148,7 +152,8 @@ export class SmartListener {
       await this.updatePrice();
 
     } catch (error) {
-      console.error('[SmartListener] 轮询错误:', error.message);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('轮询错误:', err);
     }
 
     // 继续轮询
@@ -194,7 +199,8 @@ export class SmartListener {
         }
       }
     } catch (error) {
-      console.error('[SmartListener] 更新价格失败:', error.message);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('更新价格失败:', err);
     }
   }
 

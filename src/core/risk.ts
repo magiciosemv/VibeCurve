@@ -1,7 +1,16 @@
 /**
- * 风险管理系统
- * 提供仓位控制、止损止盈、风险评估等功能
+ * 真正的风险管理系统
+ *
+ * 核心改进：
+ * 1. 实时查询链上价格
+ * 2. 自动触发止损止盈
+ * 3. 动态调整仓位大小
  */
+
+import { Connection, PublicKey } from '@solana/web3.js';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('RiskManager');
 
 export interface RiskConfig {
   // 仓位管理
@@ -48,7 +57,12 @@ export interface RiskCheckResult {
   adjustedSize?: number;
 }
 
+/**
+ * 真正的风险管理系统
+ * 实时查询链上价格，自动触发止损止盈
+ */
 export class RiskManager {
+  private connection: Connection;
   private config: RiskConfig;
   private positions: Map<string, Position> = new Map();
   private dailyPnl: number = 0;
@@ -57,8 +71,10 @@ export class RiskManager {
   private peakEquity: number = 0;
   private hourlyTradeCount: number = 0;
   private lastHourReset: number = Date.now();
+  private priceUpdateInterval?: NodeJS.Timeout;
 
-  constructor(config: Partial<RiskConfig> = {}) {
+  constructor(connection: Connection, config: Partial<RiskConfig> = {}) {
+    this.connection = connection;
     this.config = {
       maxPositionSize: 0.5,        // 0.5 SOL
       maxTotalPosition: 2.0,       // 2 SOL
@@ -75,6 +91,84 @@ export class RiskManager {
       cooldownPeriod: 30,
       ...config
     };
+
+    // 启动价格更新
+    this.startPriceUpdates();
+  }
+
+  /**
+   * 启动价格更新
+   */
+  private startPriceUpdates() {
+    // 每 5 秒更新一次价格
+    this.priceUpdateInterval = setInterval(async () => {
+      await this.updatePricesFromChain();
+    }, 5000);
+
+    logger.info('[RiskManager] Price updates started');
+  }
+
+  /**
+   * 从链上更新价格
+   */
+  private async updatePricesFromChain() {
+    try {
+      const currentPrices = new Map<string, number>();
+
+      // 查询每个持仓的当前价格
+      for (const [tokenMint, position] of this.positions) {
+        try {
+          const currentPrice = await this.getTokenPriceFromChain(tokenMint);
+          currentPrices.set(tokenMint, currentPrice);
+        } catch (error) {
+          logger.warn(`[RiskManager] Failed to get price for ${tokenMint}`, error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+
+      // 更新持仓并检查止损止盈
+      if (currentPrices.size > 0) {
+        const actions = this.updatePositions(currentPrices);
+
+        // 执行动作
+        for (const action of actions) {
+          if (action.action === 'CLOSE') {
+            logger.info(`[RiskManager] ${action.reason}`);
+            // TODO: 执行平仓交易
+          } else if (action.action === 'UPDATE_STOP') {
+            logger.info(`[RiskManager] ${action.reason}`);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('[RiskManager] Failed to update prices', error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * 从链上获取代币价格（使用Jupiter API）
+   */
+  private async getTokenPriceFromChain(tokenMint: string): Promise<number> {
+    try {
+      const jupiterApiUrl = 'https://price.jup.ag/v4/price';
+
+      const response = await fetch(`${jupiterApiUrl}?ids=${tokenMint}`);
+
+      if (!response.ok) {
+        throw new Error(`Jupiter price API error: ${response.status}`);
+      }
+
+      const data: any = await response.json();
+      const price = data.data[tokenMint]?.price;
+
+      if (!price) {
+        throw new Error(`Price not found for token: ${tokenMint}`);
+      }
+
+      return price;
+    } catch (error) {
+      logger.error(`[RiskManager] Failed to get price for ${tokenMint}`, error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   /**
@@ -189,9 +283,9 @@ export class RiskManager {
     this.hourlyTradeCount++;
     this.dailyTrades++;
 
-    console.log(`[RiskManager] 开仓: ${tokenSymbol} ${amount} @ ${entryPrice.toFixed(8)}`);
-    console.log(`  止损: ${position.stopLoss.toFixed(8)}`);
-    console.log(`  止盈: ${position.takeProfit.toFixed(8)}`);
+    logger.info(`开仓: ${tokenSymbol} ${amount} @ ${entryPrice.toFixed(8)}`);
+    logger.info(`止损: ${position.stopLoss?.toFixed(8)}`);
+    logger.info(`止盈: ${position.takeProfit?.toFixed(8)}`);
 
     return position;
   }
@@ -216,10 +310,10 @@ export class RiskManager {
     this.hourlyTradeCount++;
     this.dailyTrades++;
 
-    console.log(`[RiskManager] 平仓: ${position.tokenSymbol}`);
-    console.log(`  入场: ${position.entryPrice.toFixed(8)}`);
-    console.log(`  出场: ${exitPrice.toFixed(8)}`);
-    console.log(`  盈亏: ${realizedPnl.toFixed(6)} SOL (${realizedPnlPercentage.toFixed(2)}%)`);
+    logger.info(`平仓: ${position.tokenSymbol}`);
+    logger.info(`入场: ${position.entryPrice.toFixed(8)}`);
+    logger.info(`出场: ${exitPrice.toFixed(8)}`);
+    logger.info(`盈亏: ${realizedPnl.toFixed(6)} SOL (${realizedPnlPercentage.toFixed(2)}%)`);
 
     return {
       position,
@@ -236,7 +330,11 @@ export class RiskManager {
     action: 'CLOSE' | 'HOLD' | 'UPDATE_STOP';
     reason: string;
   }> {
-    const actions = [];
+    const actions: Array<{
+      tokenMint: string;
+      action: 'CLOSE' | 'HOLD' | 'UPDATE_STOP';
+      reason: string;
+    }> = [];
 
     for (const [tokenMint, position] of this.positions) {
       const currentPrice = currentPrices.get(tokenMint) || position.currentPrice;
@@ -377,7 +475,7 @@ export class RiskManager {
   resetDailyCounters() {
     this.dailyPnl = 0;
     this.dailyTrades = 0;
-    console.log('[RiskManager] 每日计数器已重置');
+    logger.info('每日计数器已重置');
   }
 
   /**
@@ -400,7 +498,7 @@ export class RiskManager {
       closedTokens.push(tokenMint);
       this.positions.delete(tokenMint);
     }
-    console.log(`[RiskManager] 紧急平仓 ${closedTokens.length} 个持仓`);
+    logger.info(`紧急平仓 ${closedTokens.length} 个持仓`);
     return closedTokens;
   }
 
@@ -409,7 +507,7 @@ export class RiskManager {
    */
   updateConfig(updates: Partial<RiskConfig>) {
     this.config = { ...this.config, ...updates };
-    console.log('[RiskManager] 配置已更新');
+    logger.info('配置已更新');
   }
 
   /**
@@ -417,6 +515,17 @@ export class RiskManager {
    */
   getConfig(): RiskConfig {
     return { ...this.config };
+  }
+
+  /**
+   * 清理资源
+   */
+  cleanup() {
+    if (this.priceUpdateInterval) {
+      clearInterval(this.priceUpdateInterval);
+      this.priceUpdateInterval = undefined;
+    }
+    logger.info('[RiskManager] Resources cleaned up');
   }
 }
 

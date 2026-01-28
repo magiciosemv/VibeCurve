@@ -12,6 +12,9 @@ import { sendTgAlert } from './utils/notifier';
 import { getAiComment } from './core/ai';
 import { GlobalScanner } from './listeners/scanner';
 import { SmartListener } from './listeners/smartListener'; // 新的智能监听器
+import { createLogger } from './utils/logger';
+
+const logger = createLogger('DashboardReal');
 
 const TARGET_MINT = new PublicKey('GKjAe1bQXXLoEitJYSuyw6qt97tTVoKkGEgWPEo6pump');
 const TARGET_NAME = "Chill Guy (Demo)";
@@ -182,4 +185,6 @@ async function startRealDataDashboard() {
 }
 
 // 启动
-startRealDataDashboard().catch(console.error);
+startRealDataDashboard().catch((error) => {
+  logger.error('Failed to start real data dashboard', error);
+});

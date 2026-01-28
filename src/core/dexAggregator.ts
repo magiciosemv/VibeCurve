@@ -5,6 +5,9 @@
 
 import { Connection, PublicKey } from '@solana/web3.js';
 import axios from 'axios';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('DexAggregator');
 
 /**
  * DEX 价格信息
@@ -83,7 +86,7 @@ export class DexAggregator {
       return prices;
     } catch (err) {
       const error = err as Error;
-      console.error('[DexAggregator] 获取价格失败:', error);
+      logger.error('获取价格失败:', error);
       return [];
     }
   }
@@ -110,7 +113,7 @@ export class DexAggregator {
       };
     } catch (err) {
       const error = err as Error;
-      console.error('[DexAggregator] Jupiter API 失败:', error.message);
+      logger.error('Jupiter API 失败:', error);
       return null;
     }
   }
@@ -149,7 +152,7 @@ export class DexAggregator {
       return null;
     } catch (err) {
       const error = err as Error;
-      console.error('[DexAggregator] Raydium API 失败:', error.message);
+      logger.error('Raydium API 失败:', error);
       return null;
     }
   }
@@ -190,7 +193,7 @@ export class DexAggregator {
       return null;
     } catch (err) {
       const error = err as Error;
-      console.error('[DexAggregator] Orca API 失败:', error.message);
+      logger.error('Orca API 失败:', error);
       return null;
     }
   }
@@ -229,7 +232,7 @@ export class DexAggregator {
       return null;
     } catch (err) {
       const error = err as Error;
-      console.error('[DexAggregator] Meteora API 失败:', error.message);
+      logger.error('Meteora API 失败:', error);
       return null;
     }
   }
@@ -347,10 +350,10 @@ export class ArbitrageScanner {
       const opp = await this.scanToken(token.mint, token.symbol);
       if (opp) {
         opportunities.push(opp);
-        console.log(`[ArbitrageScanner] 发现机会: ${token.symbol}`);
-        console.log(`  ${opp.buyDex} (${opp.buyPrice.toFixed(8)}) -> ${opp.sellDex} (${opp.sellPrice.toFixed(8)})`);
-        console.log(`  价差: ${opp.priceDiff.toFixed(3)}% | 利润: ${opp.estimatedProfit.toFixed(4)} SOL`);
-        console.log(`  流动性: ${opp.liquidity.toFixed(2)} SOL | 置信度: ${opp.confidence}`);
+        logger.info(`发现机会: ${token.symbol}`);
+        logger.info(`${opp.buyDex} (${opp.buyPrice.toFixed(8)}) -> ${opp.sellDex} (${opp.sellPrice.toFixed(8)})`);
+        logger.info(`价差: ${opp.priceDiff.toFixed(3)}% | 利润: ${opp.estimatedProfit.toFixed(4)} SOL`);
+        logger.info(`流动性: ${opp.liquidity.toFixed(2)} SOL | 置信度: ${opp.confidence}`);
       }
 
       // 避免速率限制

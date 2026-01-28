@@ -21,6 +21,9 @@ import { GlobalScanner } from './listeners/scanner';
 import { SmartListener } from './listeners/smartListener';
 import { BondingCurveWatcher } from './strategies/bondingCurve';
 import { SmartMoneyTracker } from './strategies/smartMoney';
+import { createLogger } from './utils/logger';
+
+const logger = createLogger('DashboardPro');
 
 const TARGET_MINT = new PublicKey('GKjAe1bQXXLoEitJYSuyw6qt97tTVoKkGEgWPEo6pump');
 const TARGET_NAME = "Chill Guy (Demo)";
@@ -303,4 +306,6 @@ async function startProDashboard() {
 }
 
 // 启动
-startProDashboard().catch(console.error);
+startProDashboard().catch((error) => {
+  logger.error('Failed to start pro dashboard', error);
+});

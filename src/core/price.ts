@@ -9,6 +9,9 @@
 import axios from 'axios';
 import { Connection, PublicKey, AccountInfo } from '@solana/web3.js';
 import { config } from '../config';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('Price');
 
 /**
  * 代币价格信息
@@ -45,7 +48,7 @@ export async function getPriceFromJupiter(tokenMint: string): Promise<TokenPrice
       priceSource: 'jupiter'
     };
   } catch (error) {
-    console.error(`[Price] Jupiter API error:`, error.message);
+    logger.error('Jupiter API error:', error as Error);
     return null;
   }
 }
@@ -74,7 +77,7 @@ export async function getPriceFromRaydium(
       priceSource: 'raydium'
     };
   } catch (error) {
-    console.error(`[Price] Raydium error:`, error.message);
+    logger.error('Raydium error:', error as Error);
     return null;
   }
 }
@@ -91,7 +94,7 @@ export async function getTokenPrice(tokenMint: string): Promise<TokenPrice | nul
   // 备用方案：从链上获取（较慢）
   // TODO: 实现 Raydium LP 查询
 
-  console.warn(`[Price] Failed to get price for ${tokenMint}`);
+  logger.warn(`Failed to get price for ${tokenMint}`);
   return null;
 }
 

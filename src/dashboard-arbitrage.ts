@@ -12,6 +12,9 @@ import { sendTgAlert } from './utils/notifier';
 import { getAiComment } from './core/ai';
 import { ArbitrageSystem } from './core/arbitrageSystem';
 import { GlobalScanner } from './listeners/scanner';
+import { createLogger } from './utils/logger';
+
+const logger = createLogger('DashboardArbitrage');
 
 const TARGET_MINT = new PublicKey('GKjAe1bQXXLoEitJYSuyw6qt97tTVoKkGEgWPEo6pump');
 const TARGET_NAME = "Chill Guy (Demo)";
@@ -288,4 +291,6 @@ async function startArbitrageDashboard() {
 }
 
 // 启动
-startArbitrageDashboard().catch(console.error);
+startArbitrageDashboard().catch((error) => {
+  logger.error('Failed to start arbitrage dashboard', error);
+});

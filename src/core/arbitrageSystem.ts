@@ -54,21 +54,21 @@ export class ArbitrageSystem extends EventEmitter {
     this.stats = new ArbitrageStats();
 
     this.config = {
-      scanInterval: 10000,      // 10 秒扫描一次
-      minProfitPercent: 0.3,    // 0.3% 最小利润
-      minLiquidity: 10,         // 10 SOL 最小流动性
-      tradeAmount: 0.05,        // 0.05 SOL 交易金额
-      maxSlippage: 0.01,        // 1% 滑点
-      autoExecute: false,       // 默认不自动执行
-      simulationMode: true,     // 默认模拟模式
-      alertOnly: true,          // 默认仅通知
+      scanInterval: 5000,       // 5 秒扫描一次（优化：更快的发现速度）
+      minProfitPercent: 0.5,    // 0.5% 最小利润（优化：覆盖实际交易成本）
+      minLiquidity: 500,        // 500 SOL 最小流动性（优化：减少滑点风险）
+      tradeAmount: 0.01,        // 0.01 SOL 交易金额（优化：降低单笔风险）
+      maxSlippage: 0.012,       // 1.2% 滑点（优化：允许小幅波动）
+      autoExecute: false,       // 默认不自动执行（安全第一）
+      simulationMode: true,     // 默认模拟模式（安全第一）
+      alertOnly: true,          // 默认仅通知（安全第一）
       tokensToScan: [
         // Solana 生态热门代币（CoinGecko 支持）
         { mint: 'So11111111111111111111111111111111111111112', symbol: 'SOL' },
         { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK' },
         { mint: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr', symbol: 'WIF' },
-        { mint: 'EPjFWdd5qrtqrep71NU3RXtzmU7CgqkSqwDayWiF', symbol: 'JUP' },
         { mint: 'EKpQGSJtjMFqKZ9KQqMnxEJBkQpFGN6XTWqH5h1YuUuN', symbol: 'RAY' },
+        { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC' }, // 稳定币套利
       ],
       ...config
     };
